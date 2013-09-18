@@ -28,7 +28,7 @@ class ShaderGenerator
 			GLSLv1_0,
 			GLSLv1_3
 		};
-		std::string generate(ASTNode* ast, std::string function, Language lang=GLSLv1_3)
+		std::string generate(ASTNode* ast, Language lang=GLSLv1_3)
 		{
 			m_language = lang;
 
@@ -38,19 +38,13 @@ class ShaderGenerator
 			}
 
 			std::string code = generateSubtree(ast);
-			return finalize(function, code);
+			return code;
 		}
 
 	private:
 		std::string type()
 		{
 			return "double";
-		}
-
-		std::string finalize(std::string function, std::string code)
-		{
-
-			return type() + " " + function + "()\n{\n\treturn " + code + ";\n}\n";
 		}
 
 		std::string generateSubtree(ASTNode* ast)
@@ -146,6 +140,7 @@ class ShaderGenerator
 				{
 					case Function2ASTNode::MIN:  return std::string("min(") + v1 + "," + v2 + ")";
 					case Function2ASTNode::MAX:  return std::string("max(") + v1 + "," + v2 + ")";
+					case Function2ASTNode::POW:  return std::string("pow(") + v1 + "," + v2 + ")";
 					default: throw GeneratorException("Unknown function in syntax tree");
 				}
 			}
@@ -184,7 +179,7 @@ class ShaderGenerator
 				std::string yes = generateSubtree(b->yes());
 				std::string no = generateSubtree(b->no());
 
-				return std::string("((") + condition + ") ? " + yes + ":" + no + ")";
+				return std::string("((bool(") + condition + ")) ? " + yes + ":" + no + ")";
 			}
 
 			throw GeneratorException("Incorrect syntax tree!");
