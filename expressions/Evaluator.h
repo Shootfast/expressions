@@ -96,6 +96,7 @@ class Evaluator
 				{
 					case Function2ASTNode::MIN:  return std::min(v1, v2);
 					case Function2ASTNode::MAX:  return std::max(v1, v2);
+					case Function2ASTNode::POW:  return (T) pow(v1, v2);
 					default: throw EvaluatorException("Unknown function in syntax tree");
 				}
 			}
