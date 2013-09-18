@@ -143,7 +143,8 @@ class Function2ASTNode : public ASTNode
 		enum Function2Type
 		{
 			MIN,
-			MAX
+			MAX,
+			POW
 		};
 
 		Function2ASTNode(Function2Type functionType, ASTNode* leftNode, ASTNode* rightNode)
