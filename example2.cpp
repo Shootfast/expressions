@@ -174,7 +174,9 @@ int main(int argc, char *argv[])
 	expr::ShaderGenerator<float> generator;
 	std::string shader;
 	shader += fragHead;
-	shader += generator.generate(ast, "calculate");
+	shader += "float calculate()\n{\n\treturn ";
+	shader += generator.generate(ast);
+	shader += ";\n}\n";
 	shader += std::string("\n") += fragMain;
 
 	std::cout << shader << std::endl;
