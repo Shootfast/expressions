@@ -344,6 +344,11 @@ class Parser
 							ASTNode *right = stack.front(); stack.pop_front();
 							stack.push_front(new Function2ASTNode(Function2ASTNode::MAX, left, right));
 						}
+						case FunctionToken::POW:
+        				{
+        					ASTNode *right = stack.front(); stack.pop_front();
+        					stack.push_front(new Function2ASTNode(Function2ASTNode::POW, left, right));
+        				}
 						break;
         			}
         			continue;

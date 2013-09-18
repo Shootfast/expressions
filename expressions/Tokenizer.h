@@ -122,7 +122,8 @@ class FunctionToken : public Token
 				CEIL,
 				FLOOR,
 				MIN,
-				MAX
+				MAX,
+				POW
 			};
 		FunctionToken(FunctionType function)
 			: Token(FUNCTION)
@@ -163,6 +164,8 @@ class FunctionToken : public Token
 					return "min";
 				case FunctionToken::MAX:
 					return "max";
+				case FunctionToken::POW:
+					return "pow";
 				default:
 					return "";
 			}
@@ -799,6 +802,12 @@ class Tokenizer
 						else if (word == "max")
 						{
 							m_tokens.push_back(new FunctionToken(FunctionToken::MAX));
+							match = true;
+							break;
+						}
+						else if (word == "pow")
+						{
+							m_tokens.push_back(new FunctionToken(FunctionToken::POW));
 							match = true;
 							break;
 						}
