@@ -20,9 +20,22 @@ float execute(const char *expression)
 	vm["x"] = x;
 	vm["y"] = y;
 
-	expr::ASTNode* ast = parser.parse(expression, &vm);
-	expr::Evaluator<float> eval;
-	return eval.evaluate(ast);
+	float result;
+	try
+	{
+		expr::ASTNode* ast = parser.parse(expression, &vm);
+		expr::Evaluator<float> eval;
+		result = eval.evaluate(ast);
+	}
+	catch (expr::ParserException &e)
+	{
+		throw;
+	}
+	catch (expr::EvaluatorException &e)
+	{
+		throw;
+	}
+	return result;
 }
 
 
@@ -36,10 +49,56 @@ void assert(const char *expression, float result)
 }
 
 
+void syntaxErrors(const char *expression)
+{
+	bool error = false;
+	try
+	{
+		execute(expression);
+	}
+	catch (expr::ParserException &e)
+	{
+		error = true;
+	}
+	if (!error)
+	{
+		std::cerr << "expression \"" << expression << "\" did not result in a syntax error" << std::endl;
+	}
+}
+
+
+void clone()
+{
+	x = 10;
+	y = 20;
+
+	expr::Parser<float> parser;
+	expr::Parser<float>::VariableMap vm;
+	vm["pi"] = pi;
+	vm["x"] = x;
+	vm["y"] = y;
+
+
+	float result;
+	expr::ASTNode* ast = parser.parse("(x + y) * 10", &vm);
+
+	expr::ASTNode* ast2 = ast->clone();
+	delete ast;
+	expr::Evaluator<float> eval;
+	result = eval.evaluate(ast2);
+
+	if (result != 300.0f)
+	{
+		std::cerr << "cloned expression did not evaluate correctly" << std::endl;
+	}
+
+}
+
+
 void test()
 {
 	unsigned int count = 0;
-
+	
 	for (x=-10; x< 10; x+= 0.1f)
 	{
 		for (y=-10; y< 10; y+= 0.1f)
@@ -61,9 +120,22 @@ void test()
 			count+=12;
 		}
 	}
+
+	syntaxErrors("x++"); count++;
+	syntaxErrors("+"); count++;
+	syntaxErrors("x y"); count++;
+	syntaxErrors("sin x"); count++;
+	syntaxErrors("min(x)"); count++;
+	syntaxErrors("min(,1)"); count++;
+	syntaxErrors(")))))))+x"); count++;
+	syntaxErrors("x % "); count++;
+	syntaxErrors("%x"); count++;
+	syntaxErrors("1-*2"); count++;
+
+	clone(); count++;
+
 	std::cout << "Ran " << count << " tests successfully" << std::endl;;
 }
-
 
 int main()
 {
