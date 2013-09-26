@@ -40,12 +40,16 @@ class Evaluator
 	private:
 		T evaluateSubtree(ASTNode* ast)
 		{
+			if(!ast)
+			{
+				throw EvaluatorException("No abstract syntax tree provided");
+			}
 			if(ast->type() == ASTNode::NUMBER)
 			{
 				NumberASTNode<T>* n = static_cast<NumberASTNode<T>* >(ast);
 				return n->value();
 			}
-			if(ast->type() == ASTNode::VARIABLE)
+			else if(ast->type() == ASTNode::VARIABLE)
 			{
 				VariableASTNode<T>* v = static_cast<VariableASTNode<T>* >(ast);
 				return v->value();
