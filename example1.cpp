@@ -17,8 +17,3 @@ int main()
 	std::cout << eval.evaluate(ast) << std::endl;
 	return 0;
 }
-
-
-
-
-
