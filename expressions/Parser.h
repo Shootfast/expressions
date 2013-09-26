@@ -29,10 +29,16 @@ class Parser
 
         ASTNode* parse(const char* text, VariableMap *variables=0)
         {
-        	std::deque<Token*> tokens = Tokenizer<T>(text).tokenize();
-        	std::deque<Token*> rpnOrdered = shuntingYard(tokens);
-
-        	return rpnToAST(rpnOrdered, variables);
+            try
+            {
+                std::deque<Token*> tokens = Tokenizer<T>(text).tokenize();
+                std::deque<Token*> rpnOrdered = shuntingYard(tokens);
+                return rpnToAST(rpnOrdered, variables);
+            }
+            catch (TokenizerException &e)
+            {
+                throw ParserException(e.what());
+            }
         }
 
         void print(std::deque<Token*> &tokens)
@@ -105,7 +111,10 @@ class Parser
         					// If no left parentheses are encountered, either the separator was misplaced
         					// or parentheses were mismatched.
         					delete token;
-        					throw ParserException("Misplaced separator or unmatched parenthesis");
+							std::stringstream ss;
+							ss << "Misplaced separator or unmatched parenthesis, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         				}
         			}
         			continue;
@@ -186,7 +195,10 @@ class Parser
         				{
         					// If the stack runs out without finding a left parenthesis, then there are mismatched parentheses
         					delete token;
-        					throw ParserException("Mismatched parenthesis");
+							std::stringstream ss;
+							ss << "Mismatched parenthesis, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         				}
         			}
 
@@ -263,9 +275,19 @@ class Parser
 
         		if (token->getType() == Token::UNARY)
         		{
+					if (stack.size() == 0)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: unary operator given without variable, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
+
         			UnaryToken *u = static_cast<UnaryToken*>(token);
+
         			if (u->getDirection() == UnaryToken::NEGATIVE)
         			{
+
         				// Take the number from the top of the stack and make it negative
         				NumberASTNode<T>* n = static_cast<NumberASTNode<T>* >(stack.front());
         				stack.pop_front();
@@ -280,6 +302,14 @@ class Parser
 
         		if (token->getType() == Token::OPERATOR)
         		{
+					if (stack.size() < 2)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: operator given with insufficient operands, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
+
         			OperatorToken *opt = static_cast<OperatorToken*>(token);
         			ASTNode *left = stack.front(); stack.pop_front();
         			ASTNode *right = stack.front(); stack.pop_front();
@@ -293,7 +323,10 @@ class Parser
         				case OperatorToken::POW:   type = OperationASTNode::POW;   break;
         				case OperatorToken::MOD:   type = OperationASTNode::MOD;   break;
         				default:
-        					throw ParserException("Unknown operator token");
+							std::stringstream ss;
+							ss << "Unknown operator token, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         			}
         			stack.push_front(new OperationASTNode(type, left, right));
         			continue;
@@ -301,6 +334,13 @@ class Parser
 
         		if (token->getType() == Token::FUNCTION)
         		{
+					if (stack.size() == 0)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: function given with insufficient operands, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
         			FunctionToken *f = static_cast<FunctionToken*>(token);
         			ASTNode *left = stack.front(); stack.pop_front();
 
@@ -335,27 +375,60 @@ class Parser
 							break;
         				case FunctionToken::MIN:
         				{
+							if (stack.size() == 0)
+							{
+								std::stringstream ss;
+								ss << "Invalid syntax: function given with insuffucient operands, character: ";
+								ss << token->getPosition();
+								throw ParserException(ss.str().c_str());
+							}
         					ASTNode *right = stack.front(); stack.pop_front();
         					stack.push_front(new Function2ASTNode(Function2ASTNode::MIN, left, right));
         				}
         				break;
         				case FunctionToken::MAX:
 						{
+							if (stack.size() == 0)
+							{
+								std::stringstream ss;
+								ss << "Invalid syntax: function given with insuffucient operands, character: ";
+								ss << token->getPosition();
+								throw ParserException(ss.str().c_str());
+							}
 							ASTNode *right = stack.front(); stack.pop_front();
 							stack.push_front(new Function2ASTNode(Function2ASTNode::MAX, left, right));
 						}
 						case FunctionToken::POW:
         				{
+							if (stack.size() == 0)
+							{
+								std::stringstream ss;
+								ss << "Invalid syntax: function given with insuffucient operands, character: ";
+								ss << token->getPosition();
+								throw ParserException(ss.str().c_str());
+							}
         					ASTNode *right = stack.front(); stack.pop_front();
         					stack.push_front(new Function2ASTNode(Function2ASTNode::POW, left, right));
         				}
 						break;
+        				default:
+							std::stringstream ss;
+							ss << "Unknown function token, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         			}
         			continue;
         		}
 
         		if (token->getType() == Token::CONDITIONAL)
         		{
+					if (stack.size() < 2)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: conditional operator given with insuffucient operands, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
         			ConditionalToken *c = static_cast<ConditionalToken*>(token);
         			ASTNode *left = stack.front(); stack.pop_front();
         			ASTNode *right = stack.front(); stack.pop_front();
@@ -375,7 +448,10 @@ class Parser
         				case ConditionalToken::LESS_THAN_EQUAL:
         					type = ComparisonASTNode::LESS_THAN_EQUAL; break;
         				default:
-        					throw ParserException("Unknown conditional operator token");
+							std::stringstream ss;
+							ss << "Unknown conditional operator token, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         			}
         			stack.push_front(new ComparisonASTNode(type, left, right));
         			continue;
@@ -383,6 +459,13 @@ class Parser
 
         		if (token->getType() == Token::LOGICAL)
         		{
+					if (stack.size() < 2)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: logical operator given with insuffucient operands, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
         			LogicalToken *l = static_cast<LogicalToken*>(token);
         			ASTNode *left = stack.front(); stack.pop_front();
         			ASTNode *right = stack.front(); stack.pop_front();
@@ -393,6 +476,11 @@ class Parser
         					type = LogicalASTNode::AND; break;
         				case LogicalToken::OR:
         					type = LogicalASTNode::OR; break;
+        				default:
+							std::stringstream ss;
+							ss << "Unknown logical operator token, character: ";
+							ss << token->getPosition();
+							throw ParserException(ss.str().c_str());
         			}
         			stack.push_front(new LogicalASTNode(type, left, right));
 					continue;
@@ -400,6 +488,13 @@ class Parser
 
         		if (token->getType() == Token::TERNARY)
         		{
+					if (stack.size() < 3)
+					{
+						std::stringstream ss;
+						ss << "Invalid syntax: ternary operator given with insuffucient operands, character: ";
+						ss << token->getPosition();
+						throw ParserException(ss.str().c_str());
+					}
         			TernaryToken *t = static_cast<TernaryToken*>(token);
         			if (t->getSymbol() == TernaryToken::TERNARY)
         			{
