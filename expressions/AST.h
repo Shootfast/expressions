@@ -34,6 +34,8 @@ class ASTNode
         {
         }
 
+		virtual ASTNode * clone() const = 0;
+
         ASTNodeType type()
         {
         	return m_type;
@@ -70,6 +72,13 @@ class OperationASTNode : public ASTNode
 		{
 			delete m_left;
 			delete m_right;
+		}
+
+		virtual OperationASTNode * clone() const
+		{
+			ASTNode * leftNode = m_left->clone();
+			ASTNode * rightNode = m_right->clone();
+			return new OperationASTNode(m_operation, leftNode, rightNode);
 		}
 
 		OperationType operation()
@@ -121,6 +130,12 @@ class Function1ASTNode : public ASTNode
 			delete m_left;
 		}
 
+		virtual Function1ASTNode * clone() const
+		{
+			ASTNode * leftNode = m_left->clone();
+			return new Function1ASTNode(m_function, leftNode);
+		}
+
 		Function1Type function()
 		{
 			return m_function;
@@ -158,6 +173,13 @@ class Function2ASTNode : public ASTNode
 		{
 			delete m_left;
 			delete m_right;
+		}
+
+		virtual Function2ASTNode * clone() const
+		{
+			ASTNode * leftNode = m_left->clone();
+			ASTNode * rightNode = m_right->clone();
+			return new Function2ASTNode(m_function, leftNode, rightNode);
 		}
 
 		Function2Type function()
@@ -208,6 +230,13 @@ class ComparisonASTNode : public ASTNode
         	delete m_right;
         }
 
+		virtual ComparisonASTNode * clone() const
+		{
+			ASTNode * leftNode = m_left->clone();
+			ASTNode * rightNode = m_right->clone();
+			return new ComparisonASTNode(m_comparison, leftNode, rightNode);
+		}
+
         ComparisonType comparison()
         {
         	return m_comparison;
@@ -250,6 +279,13 @@ class LogicalASTNode : public ASTNode
 			delete m_right;
 		}
 
+		virtual LogicalASTNode * clone() const
+		{
+			ASTNode * leftNode = m_left->clone();
+			ASTNode * rightNode = m_right->clone();
+			return new LogicalASTNode(m_operation, leftNode, rightNode);
+		}
+
 		OperationType operation()
 		{
 			return m_operation;
@@ -276,9 +312,9 @@ class BranchASTNode : public ASTNode
 {
     public:
 
-		BranchASTNode(ASTNode* conditionType, ASTNode* yesNode, ASTNode* noNode)
+		BranchASTNode(ASTNode* conditionNode, ASTNode* yesNode, ASTNode* noNode)
 			: ASTNode(ASTNode::BRANCH)
-			, m_condition(conditionType)
+			, m_condition(conditionNode)
 			, m_yes(yesNode)
 			, m_no(noNode)
         {}
@@ -289,6 +325,15 @@ class BranchASTNode : public ASTNode
         	delete m_yes;
         	delete m_no;
         }
+
+		virtual BranchASTNode * clone() const
+		{
+			ASTNode * conditionNode = m_condition->clone();
+			ASTNode * yesNode = m_yes->clone();
+			ASTNode * noNode = m_no->clone();
+			return new BranchASTNode(conditionNode, yesNode, noNode);
+		}
+
 
         ASTNode* condition()
 		{
@@ -325,6 +370,11 @@ class NumberASTNode : public ASTNode
 		~NumberASTNode()
 		{}
 
+		virtual NumberASTNode * clone() const
+		{
+			return new NumberASTNode<T>(m_value);
+		}
+
 		T value()
 		{
 			return m_value;
@@ -350,6 +400,11 @@ class VariableASTNode : public ASTNode
 
 		~VariableASTNode()
 		{}
+
+		virtual VariableASTNode * clone() const
+		{
+			return new VariableASTNode(m_key, m_map);
+		}
 
 		T value()
 		{
