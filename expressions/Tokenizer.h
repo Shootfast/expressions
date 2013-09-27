@@ -914,13 +914,16 @@ class Tokenizer
 			}
 
 			// add the endoftext token
-			if (m_tokens.back()->getType() != Token::NUMBER         &&
-				m_tokens.back()->getType() != Token::VARIABLE       &&
-				m_tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
+			if (m_tokens.size() != 0)
 			{
-				std::stringstream ss;
-				ss << "Unexpected end of expression, character: " << m_index;
-				throw TokenizerException(ss.str().c_str());
+				if (m_tokens.back()->getType() != Token::NUMBER         &&
+					m_tokens.back()->getType() != Token::VARIABLE       &&
+					m_tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
+				{
+					std::stringstream ss;
+					ss << "Unexpected end of expression, character: " << m_index;
+					throw TokenizerException(ss.str().c_str());
+				}
 			}
 			m_tokens.push_back(new Token(Token::ENDOFTEXT, m_index));
 
