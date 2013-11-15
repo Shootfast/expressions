@@ -41,7 +41,6 @@ class ASTNode
         	return m_type;
         }
 
-
     protected:
         ASTNodeType m_type;
 
@@ -390,12 +389,9 @@ class VariableASTNode : public ASTNode
 {
 	public:
 
-		typedef std::map<std::string, T> VariableMap;
-
-		VariableASTNode(std::string k, VariableMap* variableMap)
+		VariableASTNode(std::string k)
 		: ASTNode(ASTNode::VARIABLE)
 		, m_key(k)
-		, m_map(variableMap)
 		{}
 
 		~VariableASTNode()
@@ -403,18 +399,7 @@ class VariableASTNode : public ASTNode
 
 		virtual VariableASTNode * clone() const
 		{
-			return new VariableASTNode(m_key, m_map);
-		}
-
-		T value()
-		{
-			if (!m_map->count(m_key))
-			{
-				std::ostringstream ss;
-				ss << "No variable '" << m_key << "' defined in VariableMap";
-				throw Exception(ss.str().c_str());
-			}
-			return m_map->at(m_key);
+			return new VariableASTNode(m_key);
 		}
 
 		std::string variable()
@@ -424,7 +409,6 @@ class VariableASTNode : public ASTNode
 
 	protected:
 		std::string m_key;
-		VariableMap *m_map;
 };
 
 
