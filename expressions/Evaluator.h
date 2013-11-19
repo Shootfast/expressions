@@ -22,6 +22,7 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/DataLayout.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Support/Mutex.h"
 #include "llvm/Support/TargetSelect.h"
 
 #endif //USE_LLVM
@@ -46,18 +47,19 @@ class Evaluator
 	public:
 		typedef std::map<std::string, T> VariableMap;
 
-		T evaluate(ASTNode* ast, VariableMap *map=NULL)
+		Evaluator(ASTNode *ast, VariableMap *map=NULL)
+			: m_ast(ast)
+			, m_map(map)
 		{
-			if(ast == NULL)
-			{
-				throw EvaluatorException("Incorrect abstract syntax tree");
-			}
+		}
 
-			return evaluateSubtree(ast, map);
+		T evaluate()
+		{
+			return evaluateSubtree(m_ast);
 		}
 
 	private:
-		T evaluateSubtree(ASTNode* ast, VariableMap *map)
+		T evaluateSubtree(ASTNode* ast)
 		{
 			if(!ast)
 			{
@@ -72,18 +74,18 @@ class Evaluator
 			{
 				VariableASTNode<T>* v = static_cast<VariableASTNode<T>* >(ast);
 				std::string variable = v->variable();
-				if (!map)
+				if (!m_map)
 				{
 					throw EvaluatorException("Variable encountered but no VariableMap provided");
 				}
 
-				if (!map->count(variable))
+				if (!m_map->count(variable))
 				{
 					std::ostringstream ss;
 					ss << "No variable '" << variable << "' defined in VariableMap";
 					throw Exception(ss.str().c_str());
 				}
-				return map->at(variable);
+				return m_map->at(variable);
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
@@ -178,27 +180,33 @@ class Evaluator
 
 			throw EvaluatorException("Incorrect syntax tree!");
 		}
+
+
+		ASTNode * m_ast;
+		VariableMap *m_map;
 };
 
 #ifdef USE_LLVM
 
-template <typename T>
+class LLVMEvaluator;
+
+float getVariableMapping(LLVMEvaluator *eval, const char * key);
+
 class LLVMEvaluator
 {
 	public:
-		typedef std::map<std::string, T> VariableMap;
+		typedef std::map<std::string, float> VariableMap;
 
 		LLVMEvaluator(ASTNode *ast, VariableMap *map=NULL)
-			: m_context(llvm::getGlobalContext())
-			, m_module(new llvm::Module("expression jit", m_context))
+			: m_module(new llvm::Module("expression jit", m_context))
 			, m_builder(m_context)
 			, m_engine(NULL)
 			, m_fpm(m_module)
+			, m_map(map)
+			, m_getVariable(NULL)
 		{
-			if(ast == NULL)
-			{
-				throw EvaluatorException("Incorrect abstract syntax tree");
-			}
+
+			mutex().acquire();
 
 			llvm::InitializeNativeTarget();
 
@@ -210,6 +218,7 @@ class LLVMEvaluator
 				std::ostringstream ss;
 				ss << "Could not initialize LLVM JIT, ";
 				ss << error;
+				mutex().release();
 				throw EvaluatorException(ss.str().c_str());
 			}
 
@@ -219,6 +228,8 @@ class LLVMEvaluator
 			m_fpm.add(new llvm::DataLayout(*m_engine->getDataLayout()));
 			// Provide basic AliasAnalysis support for GVN
 			m_fpm.add(llvm::createBasicAliasAnalysisPass());
+			// Promote allocas to registers.
+			m_fpm.add(llvm::createPromoteMemoryToRegisterPass());
 			// Do simple "peephole" optimisations and bit-twiddling
 			m_fpm.add(llvm::createInstructionCombiningPass());
 			// Reassociate expressions
@@ -240,47 +251,65 @@ class LLVMEvaluator
 			llvm::BasicBlock *BB = llvm::BasicBlock::Create(m_context, "entry", LF);
 			m_builder.SetInsertPoint(BB);
 
-			if (map)
-			{
-				// Take the values from VariableMap and add entries to our internal map
-				for (typename VariableMap::iterator it = map->begin(); it != map->end(); it++)
-				{
-					llvm::IRBuilder<> tmpB(&LF->getEntryBlock(), LF->getEntryBlock().begin());
-					llvm::AllocaInst *alloca = tmpB.CreateAlloca(llvm::Type::getFloatTy(m_context), 0, it->first.c_str());
-					llvm::Value *val = llvm::ConstantFP::get(m_context, llvm::APFloat(it->second));
-					m_builder.CreateStore(val, alloca);
-					m_map[it->first] = alloca;
-				}
-			}
+			// Create a function for accessing mapped variables
+			std::vector<llvm::Type*> args;
+			args.push_back(llvm::Type::getIntNTy(m_context, sizeof(uintptr_t)*8));
+			args.push_back(llvm::Type::getInt8PtrTy(m_context));
+			llvm::FunctionType *gvFT = llvm::FunctionType::get(llvm::Type::getFloatTy(m_context), args, false);
+			m_getVariable = llvm::Function::Create(gvFT, llvm::Function::ExternalLinkage, "getVariable", m_module);
+			m_engine->addGlobalMapping(m_getVariable, (void*) &getVariableMapping); 
 
 
 			// Convert AST to LLVM and place into function pointer
-			m_builder.CreateRet(generateLLVM(ast));
+			try
+			{
+				m_builder.CreateRet(generateLLVM(ast));
+			}
+			catch (...)
+			{
+				mutex().release();
+				throw;
+			}
 
 			//llvm::verifyFunction(*LF); /* This fails when intrinsics are used */
 			//LF->dump(); /* Dump the IR code*/
+			//m_module->dump();
 
 			// Set the execute function call
 			void *FPtr = m_engine->getPointerToFunction(LF);
 			m_function = (float (*)()) (intptr_t)FPtr;
+
+			mutex().release();
 		}
 
-		T evaluate()
+		~LLVMEvaluator()
+		{
+			delete m_module;
+		}
+
+		float evaluate()
 		{
 			return m_function();
 		}
 
-		//TODO fix these, Need to capture when they set a value and do the same call as the VariableMao setting
-		/*
-		T& operator[](std::string key)
+		
+		float getVariable(const char *key)
 		{
-			return m_map[key];
+			if (!m_map)
+			{
+				throw EvaluatorException("Variable encountered, but no variable map provided");
+			}
+
+			if (m_map->count(key))
+			{
+				return m_map->at(key);
+			}
+
+			std::stringstream ss;
+			ss << "Variable '" << key << "' not defined";
+			throw EvaluatorException(ss.str().c_str());
 		}
 
-		const T& operator[](std::string key) const
-		{
-			return m_map[key];
-		}*/
 
 	private:
 
@@ -293,22 +322,23 @@ class LLVMEvaluator
 			}
 			if(ast->type() == ASTNode::NUMBER)
 			{
-				NumberASTNode<T>* n = static_cast<NumberASTNode<T>* >(ast);
+				NumberASTNode<float>* n = static_cast<NumberASTNode<float>* >(ast);
 				return llvm::ConstantFP::get(m_context, llvm::APFloat(n->value()));
 			}
 			else if(ast->type() == ASTNode::VARIABLE)
 			{
-				VariableASTNode<T>* v = static_cast<VariableASTNode<T>* >(ast);
+				VariableASTNode<float>* v = static_cast<VariableASTNode<float>* >(ast);
 				std::string variable = v->variable();
 
-				if (!m_map.count(variable))
-				{
-					std::ostringstream ss;
-					ss << "No variable '" << variable << "' defined in VariableMap";
-					throw Exception(ss.str().c_str());
-				}
-				// Load the value from the map
-				return m_builder.CreateLoad(m_map[variable], variable.c_str());
+				//Get the pointer to this object into an int
+				llvm::Value *instance = llvm::ConstantInt::get(llvm::Type::getIntNTy(m_context, sizeof(uintptr_t)*8), (uintptr_t) this);
+
+				std::vector<llvm::Value*> args;
+				args.push_back(instance);
+				args.push_back(m_builder.CreateGlobalStringPtr(variable.c_str()));
+				
+				// Store the variable name in a global string ptr
+				return m_builder.CreateCall(m_getVariable, args); //m_map[variable], variable.c_str());
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
@@ -466,17 +496,26 @@ class LLVMEvaluator
 			throw EvaluatorException("Incorrect syntax tree!");
 
 		}
+
+		static llvm::sys::SmartMutex<false>& mutex(){ static llvm::sys::SmartMutex<false> m_mutex; return m_mutex;}
 		
 
-		llvm::LLVMContext &m_context;
+		llvm::LLVMContext m_context;
 		llvm::Module *m_module;
 		llvm::IRBuilder<> m_builder;
 		llvm::ExecutionEngine *m_engine;
 		llvm::FunctionPassManager m_fpm;
-		std::map<std::string, llvm::AllocaInst*> m_map;
+		llvm::Function *m_getVariable;
+		VariableMap *m_map;
 
-		T (*m_function)();
+
+		float (*m_function)();
 };
+
+float getVariableMapping(LLVMEvaluator *eval, const char * key)
+{
+	return eval->getVariable(key);
+}
 
 #endif // USE_LLVM
 
