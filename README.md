@@ -1,7 +1,8 @@
 expressions
 ===========
 
-Header only c++ expression parsing library with AST building and GLSL shader generation
+Header only c++ expression parsing library with AST building and GLSL shader generation.
+Optional LLVM JIT evaluation for improved performance.
 
 MIT licensed
 
