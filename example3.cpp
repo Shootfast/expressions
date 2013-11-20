@@ -12,21 +12,15 @@ int main()
 	expr::Parser<float> parser;
 	expr::LLVMEvaluator::VariableMap vm;
 	vm["pi"] = 3.14159265359f;
-	vm["v"] = 0.5;
+	vm["x"] = 0.5;
+	vm["y"] = 0.5;
 
-	const char * expression = "(v < 0.0404482362771082) ? v/12.92 : ((v+0.055)/1.055)^2.4";
+	const char * expression = "(x + y) * 10";
 	expr::ASTNode* ast = parser.parse(expression);
 
 	expr::LLVMEvaluator eval(ast, &vm); 
-	//expr::Evaluator<float> eval(ast, &vm);
 
-	for (int x=0; x< 1920; x++)
-	{
-		for (int y=0; y<1080; y++)
-		{
-			vm["v"] = 0.1;
-			//std::cout << eval.evaluate() << std::endl;
-		}
-	}
+	std::cout << eval.evaluate() << std::endl;
+
 	return 0;
 }

@@ -164,10 +164,11 @@ int main(int argc, char *argv[])
 	const char * expression = "min(y,8) < max(y,8) && x % y == 2 ? (ceil(cos(60*pi/180) + sin(30*pi/180) + tan(45*pi/180)) + sqrt(floor(16.5)) + log2(16)) * log10(100) : 0";
 
 	// Construct the AST from the given expression
-	expr::Parser<float> parser; expr::Parser<float>::VariableMap vm; vm["pi"] = 3.14159; vm["x"] = 10; vm["y"] = 4;
+	expr::Parser<float> parser; 
+	expr::Evaluator<float>::VariableMap vm; vm["pi"] = 3.14159; vm["x"] = 10; vm["y"] = 4;
 
-	expr::ASTNode* ast = parser.parse(expression, &vm);
-	float value = expr::Evaluator<float>().evaluate(ast);
+	expr::ASTNode* ast = parser.parse(expression);
+	float value = expr::Evaluator<float>(ast, &vm).evaluate();
 	std::cout << "Output value is: " << value << std::endl << std::endl;
 
 	// Generate the GLSL fragment shader code
