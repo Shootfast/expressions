@@ -188,10 +188,6 @@ class Evaluator
 
 #ifdef USE_LLVM
 
-class LLVMEvaluator;
-
-float getVariableMapping(LLVMEvaluator *eval, const char * key);
-
 class LLVMEvaluator
 {
 	public:
@@ -203,9 +199,9 @@ class LLVMEvaluator
 			, m_engine(NULL)
 			, m_fpm(m_module)
 			, m_map(map)
-			, m_getVariable(NULL)
+			, m_function(NULL)
 		{
-
+			// Need to use a mutex here, because LLVM apparently isn't thread safe?
 			mutex().acquire();
 
 			llvm::InitializeNativeTarget();
@@ -245,20 +241,11 @@ class LLVMEvaluator
 			// Create Function as entry point for LLVM
 			std::vector<llvm::Type*> Void(0, llvm::Type::getFloatTy(m_context));
 			llvm::FunctionType *FT = llvm::FunctionType::get(llvm::Type::getFloatTy(m_context), Void, false);
-			llvm::Function *LF = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "", m_module);
+			m_function = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, "", m_module);
 			
 			// Create block for code
-			llvm::BasicBlock *BB = llvm::BasicBlock::Create(m_context, "entry", LF);
+			llvm::BasicBlock *BB = llvm::BasicBlock::Create(m_context, "entry", m_function);
 			m_builder.SetInsertPoint(BB);
-
-			// Create a function for accessing mapped variables
-			std::vector<llvm::Type*> args;
-			args.push_back(llvm::Type::getIntNTy(m_context, sizeof(uintptr_t)*8));
-			args.push_back(llvm::Type::getInt8PtrTy(m_context));
-			llvm::FunctionType *gvFT = llvm::FunctionType::get(llvm::Type::getFloatTy(m_context), args, false);
-			m_getVariable = llvm::Function::Create(gvFT, llvm::Function::ExternalLinkage, "getVariable", m_module);
-			m_engine->addGlobalMapping(m_getVariable, (void*) &getVariableMapping); 
-
 
 			// Convert AST to LLVM and place into function pointer
 			try
@@ -271,27 +258,27 @@ class LLVMEvaluator
 				throw;
 			}
 
-			//llvm::verifyFunction(*LF); /* This fails when intrinsics are used */
-			//LF->dump(); /* Dump the IR code*/
+			// Verify that the function is well formed
+			//( fails when intrinsics are used )
+			//llvm::verifyFunction(*LF);
+
+			// Dump the LLVM IR (for debugging)
 			//m_module->dump();
 
-			// Set the execute function call
-			void *FPtr = m_engine->getPointerToFunction(LF);
-			m_function = (float (*)()) (intptr_t)FPtr;
+			// Set the evaluate function call
+			void *FPtr = m_engine->getPointerToFunction(m_function);
+			evaluate = (float (*)()) (intptr_t)FPtr;
 
 			mutex().release();
 		}
 
 		~LLVMEvaluator()
 		{
+			m_engine->freeMachineCodeForFunction(m_function);
 			delete m_module;
 		}
 
-		float evaluate()
-		{
-			return m_function();
-		}
-
+		float (*evaluate)();
 		
 		float getVariable(const char *key)
 		{
@@ -330,15 +317,15 @@ class LLVMEvaluator
 				VariableASTNode<float>* v = static_cast<VariableASTNode<float>* >(ast);
 				std::string variable = v->variable();
 
-				//Get the pointer to this object into an int
-				llvm::Value *instance = llvm::ConstantInt::get(llvm::Type::getIntNTy(m_context, sizeof(uintptr_t)*8), (uintptr_t) this);
+				// Put the memory location of the variable from the map, into an LLVM constant
+				llvm::Value *location = llvm::ConstantInt::get(llvm::Type::getIntNTy(m_context, sizeof(uintptr_t)*8), (uintptr_t) &m_map->at(variable));
+				// Cast it to pointer
+				llvm::Value *ptr = m_builder.CreateIntToPtr(location, llvm::Type::getFloatPtrTy(m_context));
+				// Then dereference and load the pointer value
+				llvm::Value *gep = m_builder.CreateGEP(ptr, llvm::ConstantInt::get(m_context, llvm::APInt(32, 0)), "geptmp");
+				llvm::Value *load = m_builder.CreateLoad(gep, "loadtmp");
 
-				std::vector<llvm::Value*> args;
-				args.push_back(instance);
-				args.push_back(m_builder.CreateGlobalStringPtr(variable.c_str()));
-				
-				// Store the variable name in a global string ptr
-				return m_builder.CreateCall(m_getVariable, args); //m_map[variable], variable.c_str());
+				return load;
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
@@ -375,7 +362,7 @@ class LLVMEvaluator
 					//case Function1ASTNode::TAN: return m_builder.CreateCall(llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::tan, arg_types), v1 ,"tantmp");
 					case Function1ASTNode::TAN:
 					{
-						// No tan operator in LLVM 3.2. Have to use sin0/cos0
+						// No tan operator in LLVM 3.2. Have to use sin/cos
 						llvm::Value *sin = m_builder.CreateCall(llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::sin, arg_types), v1, "sintmp");
 						llvm::Value *cos = m_builder.CreateCall(llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::cos, arg_types), v1, "costmp");
 						return m_builder.CreateFDiv(sin, cos, "tantmp");
@@ -389,7 +376,7 @@ class LLVMEvaluator
 					{
 						// No ceil operator in LLVM 3.2. Have to use floor +1
 						llvm::Value *floor = m_builder.CreateCall(llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::floor, arg_types), v1, "floortmp");
-						llvm::Value *one = llvm::ConstantFP::get(m_context, llvm::APFloat(1.0));
+						llvm::Value *one = llvm::ConstantFP::get(m_context, llvm::APFloat(1.0f));
 						return m_builder.CreateFAdd(floor, one, "ceiltmp");
 					}
 					case Function1ASTNode::FLOOR: return m_builder.CreateCall(llvm::Intrinsic::getDeclaration(m_module, llvm::Intrinsic::floor, arg_types), v1, "floortmp");
@@ -497,7 +484,10 @@ class LLVMEvaluator
 
 		}
 
-		static llvm::sys::SmartMutex<false>& mutex(){ static llvm::sys::SmartMutex<false> m_mutex; return m_mutex;}
+		static llvm::sys::SmartMutex<false>& mutex()
+		{
+			static llvm::sys::SmartMutex<false> m_mutex; return m_mutex;
+		}
 		
 
 		llvm::LLVMContext m_context;
@@ -505,17 +495,10 @@ class LLVMEvaluator
 		llvm::IRBuilder<> m_builder;
 		llvm::ExecutionEngine *m_engine;
 		llvm::FunctionPassManager m_fpm;
-		llvm::Function *m_getVariable;
+		llvm::Function *m_function;
 		VariableMap *m_map;
 
-
-		float (*m_function)();
 };
-
-float getVariableMapping(LLVMEvaluator *eval, const char * key)
-{
-	return eval->getVariable(key);
-}
 
 #endif // USE_LLVM
 
