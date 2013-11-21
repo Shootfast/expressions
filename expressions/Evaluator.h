@@ -274,8 +274,7 @@ class LLVMEvaluator
 
 		~LLVMEvaluator()
 		{
-			m_engine->freeMachineCodeForFunction(m_function);
-			delete m_module;
+			delete m_engine;
 		}
 
 		float (*evaluate)();
