@@ -1022,7 +1022,7 @@ class Tokenizer
 			number[m_index-index] = '\0';
 			ss << number;
 			ss >> value;
-			delete number;
+			delete[] number;
 			return value;
 
 		}

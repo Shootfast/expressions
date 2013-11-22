@@ -25,15 +25,14 @@ template <typename T>
 class Parser
 {
     public:
-		typedef std::map<std::string, T> VariableMap;
 
-        ASTNode* parse(const char* text, VariableMap *variables=0)
+        ASTNode* parse(const char* text)
         {
             try
             {
                 std::deque<Token*> tokens = Tokenizer<T>(text).tokenize();
                 std::deque<Token*> rpnOrdered = shuntingYard(tokens);
-                return rpnToAST(rpnOrdered, variables);
+                return rpnToAST(rpnOrdered);
             }
             catch (TokenizerException &e)
             {
@@ -245,7 +244,7 @@ class Parser
         	return output;
         }
 
-        ASTNode* rpnToAST(std::deque<Token*> &tokens, VariableMap *variables)
+        ASTNode* rpnToAST(std::deque<Token*> &tokens)
         {
         	// To convert from RPN to AST, just push each number node onto the front of the stack
         	// and for each operator, pop the required operands, then push the resulting node
@@ -266,7 +265,7 @@ class Parser
         		if (token->getType() == Token::VARIABLE)
         		{
         			std::string key = static_cast<VariableToken*>(token)->getValue();
-        			ASTNode *n = new VariableASTNode<T>(key, variables);
+        			ASTNode *n = new VariableASTNode<T>(key);
         			stack.push_front(n);
         			continue;
         		}
