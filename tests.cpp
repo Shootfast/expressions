@@ -1,5 +1,5 @@
 // tests.cpp
-
+// g++ tests.cpp -o test -I. `llvm-config --cppflags --ldflags --libs core jit native` -Wall -DUSE_LLVM
 #include <expressions/expressions.h>
 #include <iostream>
 #include "math.h"
@@ -7,9 +7,6 @@
 #include <cmath> // for fabs
 #include <limits> // for epsilon
 
-float pi = 3.41459f;
-float x = 0;
-float y = 0;
 
 
 #ifdef USE_LLVM
@@ -20,33 +17,59 @@ typedef expr::Evaluator<float> Evaluator;
 typedef expr::Evaluator<float>::VariableMap VariableMap;
 #endif
 
+// globals
+float pi = 3.41459f;
+float x = 0;
+float y = 0;
+
+// EvaluationTest object means we don't need to recompile the expression for every test
+class EvaluationTest
+{
+	public:
+		EvaluationTest(const char *expression)
+		{
+			m_vm["x"] = 0;
+			m_vm["y"] = 0;
+			m_vm["pi"] = pi;
+			m_eval = new Evaluator(parser.parse(expression), &m_vm);
+		}
+		~EvaluationTest()
+		{
+			delete m_eval;
+		}
+
+		float evaluate(float x, float y)
+		{
+			m_vm["x"] = x;
+			m_vm["y"] = y;
+			return m_eval->evaluate();
+		}
+
+	private:
+		expr::Parser<float> parser;
+		VariableMap m_vm;
+		Evaluator *m_eval;
+};
+
+typedef std::map<std::string, EvaluationTest*> TestMap;
+TestMap tests;
+
 
 
 float execute(const char *expression)
 {
-	expr::Parser<float> parser;
-	VariableMap vm;
-	vm["pi"] = pi;
-	vm["x"] = x;
-	vm["y"] = y;
+	EvaluationTest *t;
+	if (tests.count(std::string(expression)))
+	{
+		t = tests[std::string(expression)];
+	}
+	else
+	{
+		t = new EvaluationTest(expression);
+		tests[std::string(expression)] = t;
+	}
 
-	float result;
-	try
-	{
-		expr::ASTNode* ast = parser.parse(expression);
-		Evaluator eval(ast, &vm);
-		result = eval.evaluate();
-		delete ast;
-	}
-	catch (expr::ParserException &e)
-	{
-		throw;
-	}
-	catch (expr::EvaluatorException &e)
-	{
-		throw;
-	}
-	return result;
+	return t->evaluate(x,y);
 }
 
 
@@ -91,10 +114,9 @@ void clone()
 
 
 	float result;
-	expr::ASTNode* ast = parser.parse("(x + y) * 10");
+	expr::ASTNodePtr ast = parser.parse("(x + y) * 10");
 
-	expr::ASTNode* ast2 = ast->clone();
-	delete ast;
+	expr::ASTNodePtr ast2 = ast->clone();
 	Evaluator eval(ast2, &vm);
 	result = eval.evaluate();
 
@@ -102,8 +124,6 @@ void clone()
 	{
 		std::cerr << "cloned expression did not evaluate correctly" << std::endl;
 	}
-	delete ast2;
-
 }
 
 
@@ -152,6 +172,11 @@ void test()
 int main()
 {
 	test();
+	for(TestMap::iterator it=tests.begin(); it!=tests.end(); ++it)
+	{
+		delete it->second;
+	}
+	tests.clear();
 	return 0;
 }
 
