@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "AST.h"
+#include "Memory.h"
 #include "Exception.h"
 
 #ifdef USE_LLVM
@@ -47,7 +48,7 @@ class Evaluator
 	public:
 		typedef std::map<std::string, T> VariableMap;
 
-		Evaluator(ASTNode *ast, VariableMap *map=NULL)
+		Evaluator(ASTNodePtr ast, VariableMap *map=NULL)
 			: m_ast(ast)
 			, m_map(map)
 		{
@@ -59,7 +60,7 @@ class Evaluator
 		}
 
 	private:
-		T evaluateSubtree(ASTNode* ast)
+		T evaluateSubtree(ASTNodePtr ast)
 		{
 			if(!ast)
 			{
@@ -67,12 +68,12 @@ class Evaluator
 			}
 			if(ast->type() == ASTNode::NUMBER)
 			{
-				NumberASTNode<T>* n = static_cast<NumberASTNode<T>* >(ast);
+				SHARED_PTR<NumberASTNode<T> > n = STATIC_POINTER_CAST<NumberASTNode<T> >(ast);
 				return n->value();
 			}
 			else if(ast->type() == ASTNode::VARIABLE)
 			{
-				VariableASTNode<T>* v = static_cast<VariableASTNode<T>* >(ast);
+				SHARED_PTR<VariableASTNode<T> > v = STATIC_POINTER_CAST<VariableASTNode<T> >(ast);
 				std::string variable = v->variable();
 				if (!m_map)
 				{
@@ -89,7 +90,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
-				OperationASTNode* op = static_cast<OperationASTNode*>(ast);
+				SHARED_PTR<OperationASTNode> op = STATIC_POINTER_CAST<OperationASTNode>(ast);
 
 				T v1 = evaluateSubtree(op->right()); // the operators are switched thanks to rpn notation
 				T v2 = evaluateSubtree(op->left());
@@ -106,7 +107,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::FUNCTION1)
 			{
-				Function1ASTNode* f = static_cast<Function1ASTNode*>(ast);
+				SHARED_PTR<Function1ASTNode> f = STATIC_POINTER_CAST<Function1ASTNode>(ast);
 
 				T v1 = evaluateSubtree(f->left());
 				switch(f->function())
@@ -125,7 +126,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::FUNCTION2)
 			{
-				Function2ASTNode* f = static_cast<Function2ASTNode*>(ast);
+				SHARED_PTR<Function2ASTNode> f = STATIC_POINTER_CAST<Function2ASTNode>(ast);
 
 				T v1 = evaluateSubtree(f->right()); // the operators are switched thanks to rpn notation
 				T v2 = evaluateSubtree(f->left());
@@ -139,7 +140,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::COMPARISON)
 			{
-				ComparisonASTNode* c = static_cast<ComparisonASTNode*>(ast);
+				SHARED_PTR<ComparisonASTNode> c = STATIC_POINTER_CAST<ComparisonASTNode>(ast);
 				T v1 = evaluateSubtree(c->right()); // the operators are switched thanks to rpn notation
 				T v2 = evaluateSubtree(c->left());
 				switch(c->comparison())
@@ -155,7 +156,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::LOGICAL)
 			{
-				LogicalASTNode *l = static_cast<LogicalASTNode*>(ast);
+				SHARED_PTR<LogicalASTNode> l = STATIC_POINTER_CAST<LogicalASTNode>(ast);
 				T v1 = evaluateSubtree(l->right()); // the operators are switched thanks to rpn notation
 				T v2 = evaluateSubtree(l->left());
 				switch(l->operation())
@@ -167,7 +168,7 @@ class Evaluator
 			}
 			else if (ast->type() == ASTNode::BRANCH)
 			{
-				BranchASTNode* b = static_cast<BranchASTNode*>(ast);
+				SHARED_PTR<BranchASTNode> b = STATIC_POINTER_CAST<BranchASTNode>(ast);
 				if ((bool)evaluateSubtree(b->condition()) == true)
 				{
 					return evaluateSubtree(b->yes());
@@ -182,7 +183,7 @@ class Evaluator
 		}
 
 
-		ASTNode * m_ast;
+		ASTNodePtr m_ast;
 		VariableMap *m_map;
 };
 
@@ -193,13 +194,14 @@ class LLVMEvaluator
 	public:
 		typedef std::map<std::string, float> VariableMap;
 
-		LLVMEvaluator(ASTNode *ast, VariableMap *map=NULL)
-			: m_module(new llvm::Module("expression jit", m_context))
+		LLVMEvaluator(ASTNodePtr ast, VariableMap *map=NULL)
+			: m_context()
+			, m_module(new llvm::Module("expression jit", m_context))
 			, m_builder(m_context)
 			, m_engine(NULL)
 			, m_fpm(m_module)
-			, m_map(map)
 			, m_function(NULL)
+			, m_map(map)
 		{
 			// Need to use a mutex here, because LLVM apparently isn't thread safe?
 			mutex().acquire();
@@ -260,7 +262,7 @@ class LLVMEvaluator
 
 			// Verify that the function is well formed
 			//( fails when intrinsics are used )
-			//llvm::verifyFunction(*LF);
+			//llvm::verifyFunction(*m_function);
 
 			// Dump the LLVM IR (for debugging)
 			//m_module->dump();
@@ -300,7 +302,7 @@ class LLVMEvaluator
 	private:
 
 		// Convert AST into LLVM
-		llvm::Value *generateLLVM(ASTNode* ast)
+		llvm::Value *generateLLVM(ASTNodePtr ast)
 		{
 			if(!ast)
 			{
@@ -308,12 +310,12 @@ class LLVMEvaluator
 			}
 			if(ast->type() == ASTNode::NUMBER)
 			{
-				NumberASTNode<float>* n = static_cast<NumberASTNode<float>* >(ast);
+				SHARED_PTR<NumberASTNode<float> > n = STATIC_POINTER_CAST<NumberASTNode<float> >(ast);
 				return llvm::ConstantFP::get(m_context, llvm::APFloat(n->value()));
 			}
 			else if(ast->type() == ASTNode::VARIABLE)
 			{
-				VariableASTNode<float>* v = static_cast<VariableASTNode<float>* >(ast);
+				SHARED_PTR<VariableASTNode<float> > v = STATIC_POINTER_CAST<VariableASTNode<float> >(ast);
 				std::string variable = v->variable();
 
 				// Put the memory location of the variable from the map, into an LLVM constant
@@ -328,7 +330,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
-				OperationASTNode* op = static_cast<OperationASTNode*>(ast);
+				SHARED_PTR<OperationASTNode> op = STATIC_POINTER_CAST<OperationASTNode>(ast);
 
 				llvm::Value *v1 = generateLLVM(op->right()); // the operators are switched thanks to rpn notation
 				llvm::Value *v2 = generateLLVM(op->left());
@@ -350,7 +352,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::FUNCTION1)
 			{
-				Function1ASTNode* f = static_cast<Function1ASTNode*>(ast);
+				SHARED_PTR<Function1ASTNode> f = STATIC_POINTER_CAST<Function1ASTNode>(ast);
 
 				llvm::Value *v1 = generateLLVM(f->left());
 				std::vector<llvm::Type*> arg_types(1, llvm::Type::getFloatTy(m_context)); // args are 1 float
@@ -384,7 +386,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::FUNCTION2)
 			{
-				Function2ASTNode* f = static_cast<Function2ASTNode*>(ast);
+				SHARED_PTR<Function2ASTNode> f = STATIC_POINTER_CAST<Function2ASTNode>(ast);
 
 				llvm::Value *v1 = generateLLVM(f->right()); // the operators are switched thanks to rpn notation
 				llvm::Value *v2 = generateLLVM(f->left());
@@ -413,7 +415,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::COMPARISON)
 			{
-				ComparisonASTNode* c = static_cast<ComparisonASTNode*>(ast);
+				SHARED_PTR<ComparisonASTNode> c = STATIC_POINTER_CAST<ComparisonASTNode>(ast);
 				llvm::Value *v1 = generateLLVM(c->right()); // the operators are switched thanks to rpn notation
 				llvm::Value *v2 = generateLLVM(c->left());
 				switch(c->comparison())
@@ -429,7 +431,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::LOGICAL)
 			{
-				LogicalASTNode *l = static_cast<LogicalASTNode*>(ast);
+				SHARED_PTR<LogicalASTNode> l = STATIC_POINTER_CAST<LogicalASTNode>(ast);
 				llvm::Value *v1 = generateLLVM(l->right()); // the operators are switched thanks to rpn notation
 				llvm::Value *v2 = generateLLVM(l->left());
 				switch(l->operation())
@@ -441,7 +443,7 @@ class LLVMEvaluator
 			}
 			else if (ast->type() == ASTNode::BRANCH)
 			{
-				BranchASTNode* b = static_cast<BranchASTNode*>(ast);
+				SHARED_PTR<BranchASTNode> b = STATIC_POINTER_CAST<BranchASTNode>(ast);
 
 				llvm::Value *cond = generateLLVM(b->condition());
 				// If condition is a number, coerce it to bool

@@ -6,6 +6,7 @@
 #include <string>
 #include <sstream>
 #include "Exception.h"
+#include "Memory.h"
 
 namespace expr
 {
@@ -34,7 +35,7 @@ class ASTNode
         {
         }
 
-		virtual ASTNode * clone() const = 0;
+		virtual SHARED_PTR<ASTNode> clone() const = 0;
 
         ASTNodeType type()
         {
@@ -45,6 +46,7 @@ class ASTNode
         ASTNodeType m_type;
 
 };
+typedef SHARED_PTR<ASTNode> ASTNodePtr;
 
 
 class OperationASTNode : public ASTNode
@@ -60,7 +62,7 @@ class OperationASTNode : public ASTNode
 			MOD
 		};
 
-		OperationASTNode(OperationType operationType, ASTNode* leftNode, ASTNode* rightNode)
+		OperationASTNode(OperationType operationType, ASTNodePtr leftNode, ASTNodePtr rightNode)
 		: ASTNode(ASTNode::OPERATION)
 		, m_operation(operationType)
 		, m_left(leftNode)
@@ -69,15 +71,13 @@ class OperationASTNode : public ASTNode
 
 		~OperationASTNode()
 		{
-			delete m_left;
-			delete m_right;
 		}
 
-		virtual OperationASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * leftNode = m_left->clone();
-			ASTNode * rightNode = m_right->clone();
-			return new OperationASTNode(m_operation, leftNode, rightNode);
+			ASTNodePtr leftNode = m_left->clone();
+			ASTNodePtr rightNode = m_right->clone();
+			return ASTNodePtr(new OperationASTNode(m_operation, leftNode, rightNode));
 		}
 
 		OperationType operation()
@@ -85,20 +85,20 @@ class OperationASTNode : public ASTNode
 			return m_operation;
 		}
 
-		ASTNode* left()
+		ASTNodePtr left()
 		{
 			return m_left;
 		}
 
-		ASTNode* right()
+		ASTNodePtr right()
 		{
 			return m_right;
 		}
 
 	protected:
 		OperationType m_operation;
-		ASTNode* m_left;
-		ASTNode* m_right;
+		ASTNodePtr m_left;
+		ASTNodePtr m_right;
 };
 
 
@@ -118,7 +118,7 @@ class Function1ASTNode : public ASTNode
 			FLOOR
 		};
 
-		Function1ASTNode(Function1Type functionType, ASTNode* leftNode)
+		Function1ASTNode(Function1Type functionType, ASTNodePtr leftNode)
 		: ASTNode(ASTNode::FUNCTION1)
 		, m_function(functionType)
 		, m_left(leftNode)
@@ -126,13 +126,12 @@ class Function1ASTNode : public ASTNode
 
 		~Function1ASTNode()
 		{
-			delete m_left;
 		}
 
-		virtual Function1ASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * leftNode = m_left->clone();
-			return new Function1ASTNode(m_function, leftNode);
+			ASTNodePtr leftNode = m_left->clone();
+			return ASTNodePtr(new Function1ASTNode(m_function, leftNode));
 		}
 
 		Function1Type function()
@@ -140,14 +139,14 @@ class Function1ASTNode : public ASTNode
 			return m_function;
 		}
 
-		ASTNode* left()
+		ASTNodePtr left()
 		{
 			return m_left;
 		}
 
 	protected:
 		Function1Type m_function;
-		ASTNode* m_left;
+		ASTNodePtr m_left;
 };
 
 
@@ -161,7 +160,7 @@ class Function2ASTNode : public ASTNode
 			POW
 		};
 
-		Function2ASTNode(Function2Type functionType, ASTNode* leftNode, ASTNode* rightNode)
+		Function2ASTNode(Function2Type functionType, ASTNodePtr leftNode, ASTNodePtr rightNode)
 		: ASTNode(ASTNode::FUNCTION2)
 		, m_function(functionType)
 		, m_left(leftNode)
@@ -170,15 +169,13 @@ class Function2ASTNode : public ASTNode
 
 		~Function2ASTNode()
 		{
-			delete m_left;
-			delete m_right;
 		}
 
-		virtual Function2ASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * leftNode = m_left->clone();
-			ASTNode * rightNode = m_right->clone();
-			return new Function2ASTNode(m_function, leftNode, rightNode);
+			ASTNodePtr leftNode = m_left->clone();
+			ASTNodePtr rightNode = m_right->clone();
+			return ASTNodePtr(new Function2ASTNode(m_function, leftNode, rightNode));
 		}
 
 		Function2Type function()
@@ -186,20 +183,20 @@ class Function2ASTNode : public ASTNode
 			return m_function;
 		}
 
-		ASTNode* left()
+		ASTNodePtr left()
 		{
 			return m_left;
 		}
 
-		ASTNode* right()
+		ASTNodePtr right()
 		{
 			return m_right;
 		}
 
 	protected:
 		Function2Type m_function;
-		ASTNode* m_left;
-		ASTNode* m_right;
+		ASTNodePtr m_left;
+		ASTNodePtr m_right;
 };
 
 
@@ -216,7 +213,7 @@ class ComparisonASTNode : public ASTNode
 			LESS_THAN_EQUAL
 		};
 
-		ComparisonASTNode(ComparisonType comparisonType, ASTNode* leftNode, ASTNode* rightNode)
+		ComparisonASTNode(ComparisonType comparisonType, ASTNodePtr leftNode, ASTNodePtr rightNode)
 			: ASTNode(ASTNode::COMPARISON)
 			, m_comparison(comparisonType)
 			, m_left(leftNode)
@@ -225,15 +222,13 @@ class ComparisonASTNode : public ASTNode
 
         ~ComparisonASTNode()
         {
-        	delete m_left;
-        	delete m_right;
         }
 
-		virtual ComparisonASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * leftNode = m_left->clone();
-			ASTNode * rightNode = m_right->clone();
-			return new ComparisonASTNode(m_comparison, leftNode, rightNode);
+			ASTNodePtr leftNode = m_left->clone();
+			ASTNodePtr rightNode = m_right->clone();
+			return ASTNodePtr(new ComparisonASTNode(m_comparison, leftNode, rightNode));
 		}
 
         ComparisonType comparison()
@@ -241,20 +236,20 @@ class ComparisonASTNode : public ASTNode
         	return m_comparison;
         }
 
-        ASTNode* left()
+        ASTNodePtr left()
 		{
 			return m_left;
 		}
 
-		ASTNode* right()
+		ASTNodePtr right()
 		{
 			return m_right;
 		}
 
     protected:
         ComparisonType m_comparison;
-		ASTNode* m_left;
-		ASTNode* m_right;
+		ASTNodePtr m_left;
+		ASTNodePtr m_right;
 };
 
 class LogicalASTNode : public ASTNode
@@ -265,7 +260,7 @@ class LogicalASTNode : public ASTNode
 			AND,
 			OR
 		};
-		LogicalASTNode(OperationType operationType, ASTNode* leftNode, ASTNode* rightNode)
+		LogicalASTNode(OperationType operationType, ASTNodePtr leftNode, ASTNodePtr rightNode)
 			: ASTNode(ASTNode::LOGICAL)
 			, m_operation(operationType)
 			, m_left(leftNode)
@@ -274,15 +269,13 @@ class LogicalASTNode : public ASTNode
 
 		~LogicalASTNode()
 		{
-			delete m_left;
-			delete m_right;
 		}
 
-		virtual LogicalASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * leftNode = m_left->clone();
-			ASTNode * rightNode = m_right->clone();
-			return new LogicalASTNode(m_operation, leftNode, rightNode);
+			ASTNodePtr leftNode = m_left->clone();
+			ASTNodePtr rightNode = m_right->clone();
+			return ASTNodePtr(new LogicalASTNode(m_operation, leftNode, rightNode));
 		}
 
 		OperationType operation()
@@ -290,20 +283,20 @@ class LogicalASTNode : public ASTNode
 			return m_operation;
 		}
 
-		ASTNode* left()
+		ASTNodePtr left()
 		{
 			return m_left;
 		}
 
-		ASTNode* right()
+		ASTNodePtr right()
 		{
 			return m_right;
 		}
 
 	protected:
 		OperationType m_operation;
-		ASTNode* m_left;
-		ASTNode* m_right;
+		ASTNodePtr m_left;
+		ASTNodePtr m_right;
 };
 
 
@@ -311,7 +304,7 @@ class BranchASTNode : public ASTNode
 {
     public:
 
-		BranchASTNode(ASTNode* conditionNode, ASTNode* yesNode, ASTNode* noNode)
+		BranchASTNode(ASTNodePtr conditionNode, ASTNodePtr yesNode, ASTNodePtr noNode)
 			: ASTNode(ASTNode::BRANCH)
 			, m_condition(conditionNode)
 			, m_yes(yesNode)
@@ -320,39 +313,36 @@ class BranchASTNode : public ASTNode
 
         ~BranchASTNode()
         {
-        	delete m_condition;
-        	delete m_yes;
-        	delete m_no;
         }
 
-		virtual BranchASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			ASTNode * conditionNode = m_condition->clone();
-			ASTNode * yesNode = m_yes->clone();
-			ASTNode * noNode = m_no->clone();
-			return new BranchASTNode(conditionNode, yesNode, noNode);
+			ASTNodePtr conditionNode = m_condition->clone();
+			ASTNodePtr yesNode = m_yes->clone();
+			ASTNodePtr noNode = m_no->clone();
+			return ASTNodePtr(new BranchASTNode(conditionNode, yesNode, noNode));
 		}
 
 
-        ASTNode* condition()
+        ASTNodePtr condition()
 		{
 			return m_condition;
 		}
 
-        ASTNode* yes()
+        ASTNodePtr yes()
 		{
 			return m_yes;
 		}
 
-		ASTNode* no()
+		ASTNodePtr no()
 		{
 			return m_no;
 		}
 
     protected:
-		ASTNode* m_condition;
-		ASTNode* m_yes;
-		ASTNode* m_no;
+		ASTNodePtr m_condition;
+		ASTNodePtr m_yes;
+		ASTNodePtr m_no;
 };
 
 
@@ -369,9 +359,9 @@ class NumberASTNode : public ASTNode
 		~NumberASTNode()
 		{}
 
-		virtual NumberASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			return new NumberASTNode<T>(m_value);
+			return ASTNodePtr(new NumberASTNode<T>(m_value));
 		}
 
 		T value()
@@ -397,9 +387,9 @@ class VariableASTNode : public ASTNode
 		~VariableASTNode()
 		{}
 
-		virtual VariableASTNode * clone() const
+		virtual ASTNodePtr clone() const
 		{
-			return new VariableASTNode(m_key);
+			return ASTNodePtr(new VariableASTNode(m_key));
 		}
 
 		std::string variable()

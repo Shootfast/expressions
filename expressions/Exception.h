@@ -2,25 +2,18 @@
 #define EXCEPTION_H
 
 #include <exception>
+#include <stdexcept>
 
 namespace expr
 {
 
-class Exception : public std::exception
+class Exception : public std::runtime_error
 {
 	public:
 		Exception(const char* message)
+			: std::runtime_error(message)
 		{
-			m_message = message;
 		}
-
-		virtual const char* what() const throw()
-		{
-			return m_message;
-		}
-
-	private:
-		const char *m_message;
 };
 
 } //namespace expr

@@ -3,6 +3,7 @@
 
 #include "ctype.h" // for isspace, isdigit and isalnum
 #include "string.h" // for memcpy
+#include "Memory.h"
 #include "Exception.h"
 #include <string>
 #include <deque>
@@ -57,6 +58,7 @@ class Token
         TokenType	m_type;
 		int         m_pos;
 };
+typedef SHARED_PTR<Token> TokenPtr;
 
 
 template<typename T>
@@ -531,7 +533,7 @@ class TokenizerException : public Exception
 template <typename T>
 class Tokenizer
 {
-	typedef std::deque<Token*> TokVec;
+	typedef std::deque<TokenPtr> TokVec;
 	public:
 		Tokenizer(const char *text)
 			: m_text(text)
@@ -540,9 +542,10 @@ class Tokenizer
 		}
 
 		~Tokenizer()
-		{}
+		{
+		}
 
-		TokVec tokenize()
+		void tokenize(TokVec &tokens)
 		{
 			while (m_text[m_index] != 0)
 			{
@@ -555,7 +558,7 @@ class Tokenizer
 				// Check for numbers
 				if (isdigit(m_text[m_index]) || m_text[m_index] == '.')
 				{
-					m_tokens.push_back(new NumberToken<T>(getNumber(), m_index));
+					tokens.push_back(TokenPtr(new NumberToken<T>(getNumber(), m_index)));
 					continue;
 				}
 
@@ -566,30 +569,30 @@ class Tokenizer
 					{
 						case '+':
 						{
-							Token *token;
+							TokenPtr token;
 
 							// Attempt to detect unary minus
-							if (m_tokens.size() == 0)
+							if (tokens.size() == 0)
 							{
 								// No tokens before, so unary
-								token = new UnaryToken(UnaryToken::POSITIVE, m_index);
+								token = TokenPtr(new UnaryToken(UnaryToken::POSITIVE, m_index));
 							}
 							else
 							{
-								if (m_tokens.back()->getType() == Token::CLOSE_PARENTHESIS ||
-									m_tokens.back()->getType() == Token::NUMBER            ||
-									m_tokens.back()->getType() == Token::VARIABLE )
+								if (tokens.back()->getType() == Token::CLOSE_PARENTHESIS ||
+									tokens.back()->getType() == Token::NUMBER            ||
+									tokens.back()->getType() == Token::VARIABLE )
 								{
-									token = new OperatorToken(OperatorToken::PLUS, m_index);
+									token = TokenPtr(new OperatorToken(OperatorToken::PLUS, m_index));
 								}
-								else if (m_tokens.back()->getType() == Token::FUNCTION)
+								else if (tokens.back()->getType() == Token::FUNCTION)
 								{
 									std::stringstream ss;
 									ss << "Invalid syntax: unary positive '+' following function declaration, character: ";
 									ss << m_index;
 									throw TokenizerException(ss.str().c_str());
 								}
-								else if (m_tokens.back()->getType() == Token::UNARY)
+								else if (tokens.back()->getType() == Token::UNARY)
 								{
 									std::stringstream ss;
 									ss << "Invalid syntax: unary positive '+' following unary declaration, character: ";
@@ -598,39 +601,39 @@ class Tokenizer
 								}
 								else
 								{
-									token = new UnaryToken(UnaryToken::POSITIVE, m_index);
+									token = TokenPtr(new UnaryToken(UnaryToken::POSITIVE, m_index));
 								}
 							}
-							m_tokens.push_back(token);
+							tokens.push_back(token);
 							match = true;
 							break;
 						}
 						case '-':
 						{
-							Token *token;
+							TokenPtr token;
 
 							// Attempt to detect unary minus
-							if (m_tokens.size() == 0)
+							if (tokens.size() == 0)
 							{
 								// No tokens before, so unary
-								token = new UnaryToken(UnaryToken::NEGATIVE, m_index);
+								token = TokenPtr(new UnaryToken(UnaryToken::NEGATIVE, m_index));
 							}
 							else
 							{
-								if (m_tokens.back()->getType() == Token::CLOSE_PARENTHESIS ||
-									m_tokens.back()->getType() == Token::NUMBER            ||
-									m_tokens.back()->getType() == Token::VARIABLE )
+								if (tokens.back()->getType() == Token::CLOSE_PARENTHESIS ||
+									tokens.back()->getType() == Token::NUMBER            ||
+									tokens.back()->getType() == Token::VARIABLE )
 								{
-									token = new OperatorToken(OperatorToken::MINUS, m_index);
+									token = TokenPtr(new OperatorToken(OperatorToken::MINUS, m_index));
 								}
-								else if (m_tokens.back()->getType() == Token::FUNCTION)
+								else if (tokens.back()->getType() == Token::FUNCTION)
 								{
 									std::stringstream ss;
 									ss << "Invalid syntax: unary negative '-' following function declaration, character: ";
 									ss << m_index;
 									throw TokenizerException(ss.str().c_str());
 								}
-								else if (m_tokens.back()->getType() == Token::UNARY)
+								else if (tokens.back()->getType() == Token::UNARY)
 								{
 									std::stringstream ss;
 									ss << "Invalid syntax: unary negative '-' following unary declaration, character: ";
@@ -639,54 +642,54 @@ class Tokenizer
 								}
 								else
 								{
-									token = new UnaryToken(UnaryToken::NEGATIVE, m_index);
+									token = TokenPtr(new UnaryToken(UnaryToken::NEGATIVE, m_index));
 								}
 							}
-							m_tokens.push_back(token);
+							tokens.push_back(token);
 							match = true;
 							break;
 						}
 						case '*':
-							followsExpression("multiplication operator '*'");
-							m_tokens.push_back(new OperatorToken(OperatorToken::MUL, m_index));
+							followsExpression("multiplication operator '*'", tokens);
+							tokens.push_back(TokenPtr(new OperatorToken(OperatorToken::MUL, m_index)));
 							match = true;
 							break;
 						case '/':
-							followsExpression("division operator '/'");
-							m_tokens.push_back(new OperatorToken(OperatorToken::DIV, m_index));
+							followsExpression("division operator '/'", tokens);
+							tokens.push_back(TokenPtr(new OperatorToken(OperatorToken::DIV, m_index)));
 							match = true;
 							break;
 						case '^':
-							followsExpression("power operator '^'");
-							m_tokens.push_back(new OperatorToken(OperatorToken::POW, m_index));
+							followsExpression("power operator '^'", tokens);
+							tokens.push_back(TokenPtr(new OperatorToken(OperatorToken::POW, m_index)));
 							match = true;
 							break;
 						case '%':
-							followsExpression("modulus operator '%'");
-							m_tokens.push_back(new OperatorToken(OperatorToken::MOD, m_index));
+							followsExpression("modulus operator '%'", tokens);
+							tokens.push_back(TokenPtr(new OperatorToken(OperatorToken::MOD, m_index)));
 							match = true;
 							break;
 						case '?':
-							followsExpression("ternary declaration '?'");
-							m_tokens.push_back(new TernaryToken(TernaryToken::TERNARY, m_index));
+							followsExpression("ternary declaration '?'", tokens);
+							tokens.push_back(TokenPtr(new TernaryToken(TernaryToken::TERNARY, m_index)));
 							match = true;
 							break;
 						case ':':
-							followsExpression("ternary divider ':'");
-							m_tokens.push_back(new TernaryToken(TernaryToken::COLON, m_index));
+							followsExpression("ternary divider ':'", tokens);
+							tokens.push_back(TokenPtr(new TernaryToken(TernaryToken::COLON, m_index)));
 							match = true;
 							break;
 						case '(':
-							m_tokens.push_back(new Token(Token::OPEN_PARENTHESIS, m_index));
+							tokens.push_back(TokenPtr(new Token(Token::OPEN_PARENTHESIS, m_index)));
 							match = true;
 							break;
 						case ')':
-							m_tokens.push_back(new Token(Token::CLOSE_PARENTHESIS, m_index));
+							tokens.push_back(TokenPtr(new Token(Token::CLOSE_PARENTHESIS, m_index)));
 							match = true;
 							break;
 						case ',':
-							followsExpression("comma separator ','");
-							m_tokens.push_back(new Token(Token::COMMA, m_index));
+							followsExpression("comma separator ','", tokens);
+							tokens.push_back(TokenPtr(new Token(Token::COMMA, m_index)));
 							match = true;
 							break;
 						default:
@@ -710,43 +713,43 @@ class Tokenizer
 
 						if (word == "==")
 						{
-							followsExpression("equality conditional '=='");
-							m_tokens.push_back(new ConditionalToken(ConditionalToken::EQUAL, m_index));
+							followsExpression("equality conditional '=='", tokens);
+							tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::EQUAL, m_index)));
 							m_index++;
 							match = true;
 						}
 						else if (word == "!=")
 						{
-							followsExpression("inequality conditional '!='");
-							m_tokens.push_back(new ConditionalToken(ConditionalToken::NOT_EQUAL, m_index));
+							followsExpression("inequality conditional '!='", tokens);
+							tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::NOT_EQUAL, m_index)));
 							m_index++;
 							match = true;
 						}
 						else if (word == "<=")
 						{
-							followsExpression("less-than-or-equal conditional '<='");
-							m_tokens.push_back(new ConditionalToken(ConditionalToken::LESS_THAN_EQUAL, m_index));
+							followsExpression("less-than-or-equal conditional '<='", tokens);
+							tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::LESS_THAN_EQUAL, m_index)));
 							m_index++;
 							match = true;
 						}
 						else if (word == ">=")
 						{
-							followsExpression("greater-than-or-equal conditional '>='");
-							m_tokens.push_back(new ConditionalToken(ConditionalToken::GREATER_THAN_EQUAL, m_index));
+							followsExpression("greater-than-or-equal conditional '>='", tokens);
+							tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::GREATER_THAN_EQUAL, m_index)));
 							m_index++;
 							match = true;
 						}
 						else if (word == "&&")
 						{
-							followsExpression("logical and operator '&&'");
-							m_tokens.push_back(new LogicalToken(LogicalToken::AND, m_index));
+							followsExpression("logical and operator '&&'", tokens);
+							tokens.push_back(TokenPtr(new LogicalToken(LogicalToken::AND, m_index)));
 							m_index++;
 							match = true;
 						}
 						else if (word == "||")
 						{
-							followsExpression("logical or operator '||'");
-							m_tokens.push_back(new LogicalToken(LogicalToken::OR, m_index));
+							followsExpression("logical or operator '||'", tokens);
+							tokens.push_back(TokenPtr(new LogicalToken(LogicalToken::OR, m_index)));
 							m_index++;
 							match = true;
 						}
@@ -756,13 +759,13 @@ class Tokenizer
 							switch(m_text[m_index])
 							{
 								case '<':
-									followsExpression("less-than conditional '<'");
-									m_tokens.push_back(new ConditionalToken(ConditionalToken::LESS_THAN, m_index));
+									followsExpression("less-than conditional '<'", tokens);
+									tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::LESS_THAN, m_index)));
 									match = true;
 									break;
 								case '>':
-									followsExpression("greater-than conditional '>'");
-									m_tokens.push_back(new ConditionalToken(ConditionalToken::GREATER_THAN, m_index));
+									followsExpression("greater-than conditional '>'", tokens);
+									tokens.push_back(TokenPtr(new ConditionalToken(ConditionalToken::GREATER_THAN, m_index)));
 									match = true;
 									break;
 								default:
@@ -799,64 +802,64 @@ class Tokenizer
 
 						if (word ==  "sin")
 						{
-							expressionAllowed("sin");
-							m_tokens.push_back(new FunctionToken(FunctionToken::SIN, m_index));
+							expressionAllowed("sin", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::SIN, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "cos")
 						{
-							expressionAllowed("cos");
-							m_tokens.push_back(new FunctionToken(FunctionToken::COS, m_index));
+							expressionAllowed("cos", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::COS, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "tan")
 						{
-							expressionAllowed("tan");
-							m_tokens.push_back(new FunctionToken(FunctionToken::TAN, m_index));
+							expressionAllowed("tan", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::TAN, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "sqrt")
 						{
-							expressionAllowed("sqrt");
-							m_tokens.push_back(new FunctionToken(FunctionToken::SQRT, m_index));
+							expressionAllowed("sqrt", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::SQRT, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "ceil")
 						{
-							expressionAllowed("ceil");
-							m_tokens.push_back(new FunctionToken(FunctionToken::CEIL, m_index));
+							expressionAllowed("ceil", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::CEIL, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "floor")
 						{
-							expressionAllowed("floor");
-							m_tokens.push_back(new FunctionToken(FunctionToken::FLOOR, m_index));
+							expressionAllowed("floor", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::FLOOR, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "min")
 						{
-							expressionAllowed("min");
-							m_tokens.push_back(new FunctionToken(FunctionToken::MIN, m_index));
+							expressionAllowed("min", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::MIN, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "max")
 						{
-							expressionAllowed("max");
-							m_tokens.push_back(new FunctionToken(FunctionToken::MAX, m_index));
+							expressionAllowed("max", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::MAX, m_index)));
 							match = true;
 							break;
 						}
 						else if (word == "pow")
 						{
-							expressionAllowed("pow");
-							m_tokens.push_back(new FunctionToken(FunctionToken::POW, m_index));
+							expressionAllowed("pow", tokens);
+							tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::POW, m_index)));
 							match = true;
 							break;
 						}
@@ -865,24 +868,24 @@ class Tokenizer
 							// Check for other versions of log
 							if (m_text[m_index] == '2')
 							{
-								expressionAllowed("log2");
+								expressionAllowed("log2", tokens);
 								m_index++;
-								m_tokens.push_back(new FunctionToken(FunctionToken::LOG2, m_index));
+								tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::LOG2, m_index)));
 							}
 							else if (m_text[m_index] == '1')
 							{
 								if (m_text[m_index + 1] == '0')
 								{
-								expressionAllowed("log10");
+								expressionAllowed("log10", tokens);
 									m_index+=2;
-									m_tokens.push_back(new FunctionToken(FunctionToken::LOG10, m_index));
+									tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::LOG10, m_index)));
 								}
 							}
 							else
 							{
-									expressionAllowed("log");
+									expressionAllowed("log", tokens);
 									m_index+=2;
-								m_tokens.push_back(new FunctionToken(FunctionToken::LOG, m_index));
+								tokens.push_back(TokenPtr(new FunctionToken(FunctionToken::LOG, m_index)));
 							}
 							match = true;
 							break;
@@ -898,8 +901,8 @@ class Tokenizer
 					{
 						if (word != "")
 						{
-							expressionAllowed(std::string("variable '") + word + "'");
-							m_tokens.push_back(new VariableToken(word, m_index));
+							expressionAllowed(std::string("variable '") + word + "'", tokens);
+							tokens.push_back(TokenPtr(new VariableToken(word, m_index)));
 							continue;
 						}
 					}
@@ -914,20 +917,18 @@ class Tokenizer
 			}
 
 			// add the endoftext token
-			if (m_tokens.size() != 0)
+			if (tokens.size() != 0)
 			{
-				if (m_tokens.back()->getType() != Token::NUMBER         &&
-					m_tokens.back()->getType() != Token::VARIABLE       &&
-					m_tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
+				if (tokens.back()->getType() != Token::NUMBER         &&
+					tokens.back()->getType() != Token::VARIABLE       &&
+					tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
 				{
 					std::stringstream ss;
 					ss << "Unexpected end of expression, character: " << m_index;
 					throw TokenizerException(ss.str().c_str());
 				}
 			}
-			m_tokens.push_back(new Token(Token::ENDOFTEXT, m_index));
-
-			return m_tokens;
+			tokens.push_back(TokenPtr(new Token(Token::ENDOFTEXT, m_index)));
 		}
 
 	private:
@@ -940,9 +941,9 @@ class Tokenizer
 			}
 		}
 
-		void followsExpression(std::string descriptor)
+		void followsExpression(std::string descriptor, TokVec &tokens)
 		{
-			if (m_tokens.size() == 0)
+			if (tokens.size() == 0)
 			{
 				std::stringstream ss;
 				ss << "Invalid syntax: " << descriptor << " must follow expression, character: ";
@@ -950,9 +951,9 @@ class Tokenizer
 				throw TokenizerException(ss.str().c_str());
 			}
 
-			if (m_tokens.back()->getType() != Token::NUMBER         &&
-				m_tokens.back()->getType() != Token::VARIABLE       &&
-				m_tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
+			if (tokens.back()->getType() != Token::NUMBER         &&
+				tokens.back()->getType() != Token::VARIABLE       &&
+				tokens.back()->getType() != Token::CLOSE_PARENTHESIS )
 			{
 				std::stringstream ss;
 				ss << "Invalid syntax: " << descriptor << " must follow expression, character: ";
@@ -961,14 +962,14 @@ class Tokenizer
 			}
 		}
 
-		void expressionAllowed(std::string descriptor)
+		void expressionAllowed(std::string descriptor, TokVec &tokens)
 		{
-			if (m_tokens.size() != 0)
+			if (tokens.size() != 0)
 			{
-				if (m_tokens.back()->getType() == Token::NUMBER         ||
-					m_tokens.back()->getType() == Token::VARIABLE       ||
-					m_tokens.back()->getType() == Token::FUNCTION       ||
-					m_tokens.back()->getType() == Token::CLOSE_PARENTHESIS )
+				if (tokens.back()->getType() == Token::NUMBER         ||
+					tokens.back()->getType() == Token::VARIABLE       ||
+					tokens.back()->getType() == Token::FUNCTION       ||
+					tokens.back()->getType() == Token::CLOSE_PARENTHESIS )
 				{
 					std::stringstream ss;
 					ss << "Invalid syntax: " << descriptor << " cannot directly follow another expression without an operator between, character: ";
@@ -1029,8 +1030,6 @@ class Tokenizer
 
 		const char * m_text;
 		int m_index;
-		TokVec m_tokens;
-
 };
 
 } // namespace expr
