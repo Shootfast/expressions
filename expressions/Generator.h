@@ -4,6 +4,7 @@
 #include <iostream>
 #include <set>
 #include "AST.h"
+#include "Memory.h"
 #include "Exception.h"
 
 namespace expr
@@ -28,7 +29,7 @@ class ShaderGenerator
 			GLSLv1_0,
 			GLSLv1_3
 		};
-		std::string generate(ASTNode* ast, Language lang=GLSLv1_3)
+		std::string generate(ASTNodePtr ast, Language lang=GLSLv1_3)
 		{
 			m_language = lang;
 
@@ -47,13 +48,13 @@ class ShaderGenerator
 			return "double";
 		}
 
-		std::string generateSubtree(ASTNode* ast)
+		std::string generateSubtree(ASTNodePtr ast)
 		{
 			std::stringstream ss;
 
 			if(ast->type() == ASTNode::NUMBER)
 			{
-				NumberASTNode<T>* n = static_cast<NumberASTNode<T>* >(ast);
+				SHARED_PTR<NumberASTNode<T> > n = STATIC_POINTER_CAST<NumberASTNode<T> >(ast);
 				ss << n->value();
 				if (type() == "float")
 				{
@@ -67,14 +68,14 @@ class ShaderGenerator
 			}
 			else if(ast->type() == ASTNode::VARIABLE)
 			{
-				VariableASTNode<T>* v = static_cast<VariableASTNode<T>* >(ast);
+				SHARED_PTR<VariableASTNode<T> > v = STATIC_POINTER_CAST<VariableASTNode<T> >(ast);
 				std::string var = v->variable();
 				ss << var;
 				return ss.str();
 			}
 			else if (ast->type() == ASTNode::OPERATION)
 			{
-				OperationASTNode* op = static_cast<OperationASTNode*>(ast);
+				SHARED_PTR<OperationASTNode> op = STATIC_POINTER_CAST<OperationASTNode>(ast);
 
 				std::string v1 = generateSubtree(op->right()); // the operators are switched thanks to rpn notation
 				std::string v2 = generateSubtree(op->left());
@@ -106,7 +107,7 @@ class ShaderGenerator
 			}
 			else if (ast->type() == ASTNode::FUNCTION1)
 			{
-				Function1ASTNode* f = static_cast<Function1ASTNode*>(ast);
+				SHARED_PTR<Function1ASTNode> f = STATIC_POINTER_CAST<Function1ASTNode>(ast);
 
 				std::string v1 = generateSubtree(f->left());
 				switch(f->function())
@@ -132,7 +133,7 @@ class ShaderGenerator
 			}
 			else if (ast->type() == ASTNode::FUNCTION2)
 			{
-				Function2ASTNode* f = static_cast<Function2ASTNode*>(ast);
+				SHARED_PTR<Function2ASTNode> f = STATIC_POINTER_CAST<Function2ASTNode>(ast);
 
 				std::string v1 = generateSubtree(f->right()); // the operators are switched thanks to rpn notation
 				std::string v2 = generateSubtree(f->left());
@@ -146,7 +147,7 @@ class ShaderGenerator
 			}
 			else if (ast->type() == ASTNode::COMPARISON)
 			{
-				ComparisonASTNode* c = static_cast<ComparisonASTNode*>(ast);
+				SHARED_PTR<ComparisonASTNode> c = STATIC_POINTER_CAST<ComparisonASTNode>(ast);
 				std::string v1 = generateSubtree(c->right()); // the operators are switched thanks to rpn notation
 				std::string v2 = generateSubtree(c->left());
 				switch(c->comparison())
@@ -162,7 +163,7 @@ class ShaderGenerator
 			}
 			else if (ast->type() == ASTNode::LOGICAL)
 			{
-				LogicalASTNode *l = static_cast<LogicalASTNode*>(ast);
+				SHARED_PTR<LogicalASTNode> l = STATIC_POINTER_CAST<LogicalASTNode>(ast);
 				std::string v1 = generateSubtree(l->right()); // the operators are switched thanks to rpn notation
 				std::string v2 = generateSubtree(l->left());
 				switch(l->operation())
@@ -174,7 +175,7 @@ class ShaderGenerator
 			}
 			else if (ast->type() == ASTNode::BRANCH)
 			{
-				BranchASTNode* b = static_cast<BranchASTNode*>(ast);
+				SHARED_PTR<BranchASTNode> b = STATIC_POINTER_CAST<BranchASTNode>(ast);
 				std::string condition = generateSubtree(b->condition());
 				std::string yes = generateSubtree(b->yes());
 				std::string no = generateSubtree(b->no());
